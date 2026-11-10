@@ -37,3 +37,14 @@ Install Nginx on Ubuntu:
 sudo apt update
 sudo apt install nginx
 sudo systemctl enable --now nginx
+
+## JSON access events
+
+Nginx writes one JSON object per line to `/var/log/nginx/techstore_access.log` using the `soc_json` format. Each event includes:
+
+- `timestamp`, `event_type`, and `service`
+- `source_ip`, `host`, `method`, and `path`
+- `status`, `bytes_sent`, `user_agent`, and `referrer`
+- `upstream_addr`, `upstream_status`, `request_time`, and `upstream_response_time`
+
+The `path` field excludes query parameters. Upstream fields may be empty for requests that Nginx handles locally, such as `/health`; they will be populated for proxied requests. The Nginx error log remains in its standard text format.
