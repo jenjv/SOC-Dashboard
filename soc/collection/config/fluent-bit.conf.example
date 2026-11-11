@@ -1,0 +1,25 @@
+[SERVICE]
+    Flush           5
+    Daemon          Off
+    Log_Level       info
+
+[INPUT]
+    Name              tail
+    Path              /var/log/nginx/*.log
+    Tag               security.nginx
+    Read_from_Head    Off
+    DB                /var/lib/fluent-bit/nginx.db
+
+[FILTER]
+    Name                  modify
+    Match                 *
+    Add                   source_machine SOC-NGINX
+
+[OUTPUT]
+    Name              http
+    Match             *
+    Host              VM4_TAILSCALE_IP
+    Port              8000
+    URI               /api/ingest
+    Format            json
+    Header            X-Ingest-Token REPLACE_WITH_INGEST_TOKEN
