@@ -1,0 +1,3 @@
+# SOC agent for SOC-DATABASE (VM 2). HTTP uses the standard library.
+psutil>=6,<8
+psycopg[binary]>=3.2,<4
