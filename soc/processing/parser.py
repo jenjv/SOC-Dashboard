@@ -22,14 +22,9 @@ def parse_log(record):
 
         if isinstance(message, str):
 
-            try:
-                parsed = json.loads(message)
+            parsed_message = parse_log(message)
 
-                if isinstance(parsed, dict):
-                    return {**record, **parsed}
-
-            except json.JSONDecodeError:
-                pass
+            return {**record, **parsed_message}
 
         return record
 
