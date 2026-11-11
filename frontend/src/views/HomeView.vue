@@ -1,9 +1,14 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import { getEvents, getStats, getAlerts, getAlert } from '@/services/api'
 
 const search = ref('')
 const severityFilter = ref('All')
 const selectedEvent = ref(null)
+const apiConnected = ref(false)
+const apiError = ref('')
+const stats = ref(null) 
+const alerts = ref([])
 
 const hosts = [
   { name: 'SOC-NGINX', role: 'Web server', status: 'Online', address: 'VM 01' },
@@ -11,7 +16,7 @@ const hosts = [
   { name: 'SOC-APPLICATION', role: 'Application server', status: 'Online', address: 'VM 03' },
 ]
 
-const events = [
+const events = ref([
   {
     id: 'EVT-1042',
     severity: 'High',
@@ -57,12 +62,76 @@ const events = [
     status: 'Investigating',
     details: 'Sample event: a change to the Nginx configuration was detected.',
   },
-]
+])
+
+function displayLabel(value) {
+  if (!value) return 'Unknown'
+  return value.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function formatTime(value) {
+  if (!value) return 'Unknown'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function mapApiEvent(event) {
+  return {
+    id: event.event_id || `EVT-${event.id}`,
+    severity: displayLabel(event.severity),
+    name: displayLabel(event.event_type),
+    host: event.source_machine || 'Unknown host',
+    time: formatTime(event.timestamp),
+    status: displayLabel(event.status),
+    details: event.description || 'No description provided.',
+  }
+}
+
+async function openAlertDetails(alert) {
+  try {
+    const apiAlert = await getAlert(alert.id)
+
+    selectedEvent.value = {
+      id: `ALERT-${apiAlert.id}`,
+      severity: displayLabel(apiAlert.severity),
+      name: apiAlert.title,
+      host: apiAlert.source_machine,
+      time: formatTime(apiAlert.created_at),
+      status: displayLabel(apiAlert.status),
+      details: apiAlert.description || 'No description provided.',
+    }
+  } catch (error) {
+    apiError.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
+onMounted(async () => {
+  try {
+    const [apiEvents, apiStats, apiAlerts] = await Promise.all([
+      getEvents(),
+      getStats(),
+      getAlerts(),
+    ])
+
+    if (!Array.isArray(apiEvents) || !Array.isArray(apiAlerts)) {
+      throw new Error('Unexpected API response')
+    }
+
+    events.value = apiEvents.map(mapApiEvent)
+    stats.value = apiStats
+    alerts.value = apiAlerts
+    apiConnected.value = true
+  } catch (error) {
+    apiError.value = error instanceof Error ? error.message : String(error)
+  }
+})
 
 const filteredEvents = computed(() => {
   const query = search.value.trim().toLowerCase()
 
-  return events.filter((event) => {
+  return events.value.filter((event) => {
     const matchesSeverity =
       severityFilter.value === 'All' || event.severity === severityFilter.value
     const matchesSearch =
@@ -73,8 +142,29 @@ const filteredEvents = computed(() => {
   })
 })
 
-const highSeverityCount = events.filter((event) => event.severity === 'High').length
-const openEventCount = events.filter((event) => event.status !== 'Closed').length
+const highSeverityCount = computed(() => {
+  const counts = stats.value?.severity_counts
+
+  if (!counts) {
+    return events.value.filter((event) =>
+      ['High', 'Critical'].includes(event.severity),
+    ).length
+  }
+
+  return (counts.critical ?? 0) + (counts.high ?? 0)
+})
+
+const openEventCount = computed(() => {
+  if (stats.value) return stats.value.new_alerts ?? 0
+
+  return events.value.filter(
+    (event) => !['Closed', 'Resolved'].includes(event.status),
+  ).length
+})
+
+const totalEvents = computed(
+  () => stats.value?.total_events ?? events.value.length,
+)
 </script>
 
 <template>
@@ -104,7 +194,7 @@ const openEventCount = events.filter((event) => event.status !== 'Closed').lengt
     <div class="main-area">
       <header class="topbar">
         <span>Security Operations <span class="muted">/ Dashboard</span></span>
-        <span class="demo-label"><i></i> DEMO DATA</span>
+        <span class="demo-label"><i></i> {{ apiConnected ? 'API CONNECTED' : 'DEMO DATA' }}</span>
       </header>
 
       <main id="overview" class="content">
@@ -118,88 +208,145 @@ const openEventCount = events.filter((event) => event.status !== 'Closed').lengt
         </section>
 
         <section class="metrics">
-          <article class="metric-card">
-            <span class="metric-icon blue">◉</span>
-            <p>Connected hosts</p>
-            <strong>{{ hosts.length }}</strong>
-            <small>All sample hosts online</small>
-          </article>
-          <article class="metric-card">
-            <span class="metric-icon red">!</span>
-            <p>High severity</p>
-            <strong>{{ highSeverityCount }}</strong>
-            <small>Sample events needing review</small>
-          </article>
-          <article class="metric-card">
-            <span class="metric-icon amber">⌁</span>
-            <p>Open events</p>
-            <strong>{{ openEventCount }}</strong>
-            <small>Not marked as closed</small>
-          </article>
-          <article class="metric-card">
-            <span class="metric-icon green">▤</span>
-            <p>Events shown</p>
-            <strong>{{ events.length }}</strong>
-            <small>Placeholder data</small>
-          </article>
-        </section>
+  <article class="metric-card">
+    <span class="metric-icon blue">◉</span>
+    <p>Connected hosts</p>
+    <strong>{{ hosts.length }}</strong>
+    <small>Sample hosts, not live status</small>
+  </article>
 
-        <section id="events" class="panel">
-          <div class="panel-heading">
-            <div>
-              <h2>Recent security events</h2>
-              <p>Sample events for the dashboard layout</p>
-            </div>
-            <div class="filters">
-              <input v-model="search" type="search" placeholder="Search events..." />
-              <select v-model="severityFilter" aria-label="Filter by severity">
-                <option>All</option>
-                <option>High</option>
-                <option>Medium</option>
-                <option>Low</option>
-              </select>
-            </div>
-          </div>
+  <article class="metric-card">
+    <span class="metric-icon red">!</span>
+    <p>High + critical alerts</p>
+    <strong>{{ highSeverityCount }}</strong>
+    <small>{{ stats ? 'Count from SOC API' : 'Sample count' }}</small>
+  </article>
 
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>SEVERITY</th>
-                  <th>EVENT</th>
-                  <th>HOST</th>
-                  <th>TIME</th>
-                  <th>STATUS</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="event in filteredEvents" :key="event.id">
-                  <td>
-                    <span class="severity" :class="event.severity.toLowerCase()">
-                      {{ event.severity }}
-                    </span>
-                  </td>
-                  <td>
-                    <strong class="event-name">{{ event.name }}</strong>
-                    <small class="event-id">{{ event.id }}</small>
-                  </td>
-                  <td>{{ event.host }}</td>
-                  <td>{{ event.time }}</td>
-                  <td><span class="event-status">{{ event.status }}</span></td>
-                  <td>
-                    <button class="details-button" @click="selectedEvent = event">
-                      Details
-                    </button>
-                  </td>
-                </tr>
-                <tr v-if="filteredEvents.length === 0">
-                  <td colspan="6" class="empty-state">No matching events.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
+  <article class="metric-card">
+    <span class="metric-icon amber">⌁</span>
+    <p>New alerts</p>
+    <strong>{{ openEventCount }}</strong>
+    <small>{{ stats ? 'Alerts with status new' : 'Sample count' }}</small>
+  </article>
+
+  <article class="metric-card">
+    <span class="metric-icon green">▤</span>
+    <p>Total events</p>
+    <strong>{{ totalEvents }}</strong>
+    <small>{{ stats ? 'All stored events' : 'Sample count' }}</small>
+  </article>
+</section>
+
+<section id="events" class="panel">
+  <div class="panel-heading">
+    <div>
+      <h2>Recent security events</h2>
+      <p>Events received from the SOC backend</p>
+    </div>
+    <div class="filters">
+      <input v-model="search" type="search" placeholder="Search events..." />
+      <select v-model="severityFilter" aria-label="Filter by severity">
+        <option>All</option>
+        <option>Critical</option>
+        <option>High</option>
+        <option>Medium</option>
+        <option>Low</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>SEVERITY</th>
+          <th>EVENT</th>
+          <th>HOST</th>
+          <th>TIME</th>
+          <th>STATUS</th>
+          <th></th>
+          
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="event in filteredEvents" :key="event.id">
+          <td>
+            <span class="severity" :class="event.severity.toLowerCase()">
+              {{ event.severity }}
+            </span>
+          </td>
+          <td>
+            <strong class="event-name">{{ event.name }}</strong>
+            <small class="event-id">{{ event.id }}</small>
+          </td>
+          <td>{{ event.host }}</td>
+          <td>{{ event.time }}</td>
+          <td><span class="event-status">{{ event.status }}</span></td>
+          <td>
+            <button class="details-button" @click="selectedEvent = event">
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr v-if="filteredEvents.length === 0">
+          <td colspan="6" class="empty-state">No matching events.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section id="alerts" class="panel">
+  <div class="panel-heading">
+    <div>
+      <h2>Recent alerts</h2>
+      <p>Alerts generated by backend detection rules</p>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>SEVERITY</th>
+          <th>ALERT</th>
+          <th>HOST</th>
+          <th>CREATED</th>
+          <th>STATUS</th>
+          <th>RELATED EVENT</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="alert in alerts" :key="alert.id">
+          <td>
+            <span class="severity" :class="String(alert.severity).toLowerCase()">
+              {{ displayLabel(alert.severity) }}
+            </span>
+          </td>
+          <td>
+            <strong class="event-name">{{ alert.title }}</strong>
+            <small class="event-id">{{ alert.rule_id }}</small>
+          </td>
+          <td>{{ alert.source_machine }}</td>
+          <td>{{ formatTime(alert.created_at) }}</td>
+          <td><span class="event-status">{{ displayLabel(alert.status) }}</span></td>
+          <td>{{ alert.event_id || '—' }}</td>
+          <td>
+            <button class="details-button" @click="openAlertDetails(alert)">
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr v-if="alerts.length === 0">
+          <td colspan="7" class="empty-state">No alerts from the API yet.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+        
 
         <section id="hosts" class="panel hosts-panel">
           <div class="panel-heading">
@@ -220,7 +367,10 @@ const openEventCount = events.filter((event) => event.status !== 'Closed').lengt
           </div>
         </section>
 
-        <p class="disclaimer">This screen currently uses placeholder data. It is not connected to the backend yet.</p>
+        <p class="disclaimer">
+  {{ apiConnected ? 'Events are loaded from SOC-Core. Host inventory is still sample data.' : 'Showing sample events because the SOC API could not be reached.' }}
+  <span v-if="apiError">({{ apiError }})</span>
+</p>
       </main>
     </div>
 
