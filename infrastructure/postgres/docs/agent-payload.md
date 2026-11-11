@@ -75,6 +75,13 @@ Metric fields (top level on `system_metrics`): `cpu_percent`,
 
 ## Open questions for VM 4 (SOC-CORE)
 
+0. **soc_db lives on VM 2.** The SOC backend's `DATABASE_URL` points at
+   `soc_db` on SOC-DATABASE, as `soc_user` from VM 4. VM 2's pg_hba and
+   firewall allow exactly that. `soc_user`'s routine connections are not
+   reported back to the SOC (failed logins and errors still are), so the
+   backend doesn't flood the dashboard with reports about itself. Don't
+   point the backend at `techstore`; pg_hba rejects it.
+
 1. **Fluent Bit vs. Python agent.** `soc/collection/README.md` plans
    Fluent Bit on every VM. VM 2 uses a Python agent because it also needs
    psutil metrics and `pg_stat_*` queries, which Fluent Bit can't do. Is

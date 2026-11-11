@@ -1,8 +1,31 @@
 # SOC-DATABASE (VM 2) setup
 
-Step-by-step setup for the TechStore PostgreSQL server. Every command
-runs **on SOC-DATABASE** unless it says otherwise. Fill in the
-placeholders below as you go, and never commit the real values.
+SOC-DATABASE is the team's PostgreSQL server. It holds two databases:
+
+| Database | Owner | Used by | Managed by |
+|---|---|---|---|
+| `techstore` | `db_admin` | VM 3 TechStore app (`app_user`) | this folder |
+| `soc_db` | `soc_user` | VM 4 SOC backend (events, alerts) | the VM 4 owner; this folder only manages its pg_hba line and firewall rule, never its data |
+
+## Quick install (recommended)
+
+From this folder on VM 2:
+
+```bash
+sudo VM3_TS_IP=<VM3_TS_IP> VM4_TS_IP=<VM4_TS_IP> bash scripts/install_vm2.sh all
+```
+
+- **What it does:** runs every manual step below. Each phase checks itself, and pg_hba is validated before it goes live, with an automatic rollback if anything is wrong.
+- **Safe to re-run:** existing data and passwords are kept.
+- **Passwords:** generated into `/etc/soc-vm2/secrets.env` (root only).
+- **VM 4 blip:** PostgreSQL restarts once in the `logging` phase, so VM 4's connections drop for about a second and reconnect on their own.
+- **Ingest token:** the `agent` phase asks for VM 4's ingest token. Without one, the agent runs in dry-run mode.
+- **Status check:** `sudo bash scripts/install_vm2.sh check` prints a read-only status at any time.
+
+The manual steps below explain what the script does, and are there for
+debugging. Every command runs **on SOC-DATABASE** unless it says
+otherwise. Fill in the placeholders as you go, and never commit the real
+values.
 
 | Placeholder | Meaning | How to find it |
 |---|---|---|
@@ -55,10 +78,16 @@ SOC agent belongs to.
 PGV=<PG_VERSION>
 sudo cp config/soc.conf /etc/postgresql/$PGV/main/conf.d/soc.conf
 sudo sed -i "s/<VM2_TS_IP>/$(tailscale ip -4)/" /etc/postgresql/$PGV/main/conf.d/soc.conf
+# ALTER SYSTEM settings (postgresql.auto.conf) override conf.d. Clear the old '*'
+sudo -u postgres psql -c "ALTER SYSTEM RESET listen_addresses;"
+# Wait for Tailscale at boot so PostgreSQL can bind the Tailscale IP
+sudo install -d /etc/systemd/system/postgresql@.service.d
+sudo cp config/postgresql-wait-tailscale.conf /etc/systemd/system/postgresql@.service.d/10-wait-tailscale.conf
+sudo systemctl daemon-reload
 
 sudo cp /etc/postgresql/$PGV/main/pg_hba.conf /etc/postgresql/$PGV/main/pg_hba.conf.orig
 sudo cp config/pg_hba.snippet /etc/postgresql/$PGV/main/pg_hba.conf
-sudo sed -i "s/<VM3_TS_IP>/<real VM 3 IP>/" /etc/postgresql/$PGV/main/pg_hba.conf
+sudo sed -i -e "s/<VM3_TS_IP>/<real VM 3 IP>/" -e "s/<VM4_TS_IP>/<real VM 4 IP>/" /etc/postgresql/$PGV/main/pg_hba.conf
 sudo chown postgres:postgres /etc/postgresql/$PGV/main/pg_hba.conf
 sudo chmod 640 /etc/postgresql/$PGV/main/pg_hba.conf
 
@@ -83,7 +112,9 @@ usually shows a typo or a missing log directory.
 sudo ufw default deny incoming
 sudo ufw default allow outgoing
 sudo ufw allow OpenSSH                       # keep SSH working before enabling ufw
+sudo ufw allow 41641/udp comment 'Tailscale direct connections'
 sudo ufw allow in on tailscale0 from <VM3_TS_IP> to any port 5432 proto tcp comment 'TechStore app (VM 3)'
+sudo ufw allow in on tailscale0 from <VM4_TS_IP> to any port 5432 proto tcp comment 'SOC backend (VM 4)'
 sudo ufw deny 5432/tcp comment 'PostgreSQL: everyone else'
 sudo ufw enable
 sudo ufw status numbered
