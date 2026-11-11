@@ -65,8 +65,21 @@ def parse_log(record):
     # PostgreSQL authentication failure
     if "password authentication failed" in record.lower():
 
+        ip_match = re.search(
+            r'(?<![\d.])(\d{1,3}(?:\.\d{1,3}){3})(?![\d.])',
+            record
+        )
+
+        user_match = re.search(
+            r'password authentication failed for user "([^"]+)"',
+            record,
+            re.IGNORECASE
+        )
+
         return {
             "event_type": "database_authentication_failure",
+            "source_ip": ip_match.group(1) if ip_match else None,
+            "username": user_match.group(1) if user_match else None,
             "description": record,
             "message": record
         }
