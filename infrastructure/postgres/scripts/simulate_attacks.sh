@@ -23,6 +23,11 @@ PORT="${PGPORT:-5432}"
 BRUTE_ATTEMPTS="${BRUTE_ATTEMPTS:-6}"
 BULK_REPEAT="${BULK_REPEAT:-3}"
 export PGCONNECT_TIMEOUT=5
+# With ssl = on (Ubuntu's default), libpq's default sslmode=prefer retries
+# a failed login without SSL, so every attempt would be logged twice.
+# One plain attempt keeps the event counts in docs/setup.md exact. These
+# are local test connections only.
+export PGSSLMODE="${PGSSLMODE:-disable}"
 
 say()  { printf '\n\033[1;36m==> %s\033[0m\n' "$*"; }
 note() { printf '    %s\n' "$*"; }
