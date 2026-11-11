@@ -3,8 +3,9 @@
 # =====================================================================
 # File: /etc/postgresql/<PG_VERSION>/main/pg_hba.conf
 # Replace every non-comment line in that file with the lines below (order
-# matters: the first matching line wins). Replace <VM3_TS_IP> with
-# SOC-APPLICATION's Tailscale IP. Apply with:
+# matters: the first matching line wins). Replace <VM3_TS_IP> and
+# <VM4_TS_IP> with the Tailscale IPs of SOC-APPLICATION and SOC-CORE.
+# scripts/install_vm2.sh does this for you. Apply by hand with:
 #   sudo systemctl reload postgresql
 # Check for mistakes with:
 #   sudo -u postgres psql -c 'SELECT * FROM pg_hba_file_rules WHERE error IS NOT NULL;'
@@ -23,9 +24,12 @@ host    techstore       all             127.0.0.1/32            scram-sha-256
 host    postgres        soc_monitor     127.0.0.1/32            scram-sha-256
 host    techstore       all             ::1/128                 scram-sha-256
 
-# VM 3 (SOC-APPLICATION, the TechStore app) is the only remote client,
-# and only as app_user
+# The only remote clients:
+# - VM 3 (SOC-APPLICATION, the TechStore app) as app_user, techstore only
+# - VM 4 (SOC-CORE, the SOC backend) as soc_user, soc_db only. soc_db
+#   holds the SOC's events and alerts and is owned by the VM 4 team.
 host    techstore       app_user        <VM3_TS_IP>/32          scram-sha-256
+host    soc_db          soc_user        <VM4_TS_IP>/32          scram-sha-256
 
 # Everything else is refused explicitly. An explicit reject logs a clear
 # "pg_hba.conf rejects connection" FATAL with the client IP, which the
