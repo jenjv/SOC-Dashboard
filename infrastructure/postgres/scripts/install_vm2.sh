@@ -174,10 +174,12 @@ phase_roles() {
   require_pg; load_secrets
   psql_su -v db_admin_password="$DB_ADMIN_PASSWORD" -v app_user_password="$APP_USER_PASSWORD" \
           -v soc_monitor_password="$SOC_MONITOR_PASSWORD" -v intern_password="$INTERN_PASSWORD" \
-          -f "$HERE/sql/roles.sql" >/dev/null
+          -f - < "$HERE/sql/roles.sql" >/dev/null
   ok "roles: db_admin, app_user, soc_monitor, intern_readonly; database techstore"
-  psql_su -d techstore -f "$HERE/sql/schema.sql" >/dev/null 2>&1 \
-    || psql_su -d techstore -f "$HERE/sql/schema.sql"   # rerun loudly to show the error
+  # SQL is fed on stdin (opened by root): the postgres user usually can't
+  # read files inside a private home directory such as ~/vm2.
+  psql_su -d techstore -f - < "$HERE/sql/schema.sql" >/dev/null 2>&1 \
+    || psql_su -d techstore -f - < "$HERE/sql/schema.sql"   # rerun loudly to show the error
   ok "schema, grants and monitoring.pg_stat_statements"
 }
 
