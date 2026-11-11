@@ -10,6 +10,17 @@
 -- =====================================================================
 
 \set ON_ERROR_STOP 1
+
+-- ---------------------------------------------------------------------
+-- Monitoring schema (as superuser): pg_stat_statements lives outside
+-- public, so the PUBLIC lockdown below never touches it, and soc_monitor
+-- can use it without any access to the company tables.
+-- ---------------------------------------------------------------------
+CREATE SCHEMA IF NOT EXISTS monitoring AUTHORIZATION postgres;
+REVOKE ALL ON SCHEMA monitoring FROM PUBLIC;
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements SCHEMA monitoring;
+GRANT USAGE ON SCHEMA monitoring TO soc_monitor;
+
 SET ROLE db_admin;
 
 BEGIN;
@@ -151,7 +162,7 @@ GRANT SELECT ON departments, customers, products, orders, order_items, employee_
     TO intern_readonly;
 
 -- soc_monitor gets nothing here: it reads pg_stat_* through pg_monitor
--- and has no access to any company table.
+-- and monitoring.pg_stat_statements, and has no access to company tables.
 
 COMMIT;
 

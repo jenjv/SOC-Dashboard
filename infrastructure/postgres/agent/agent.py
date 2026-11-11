@@ -606,7 +606,7 @@ class DbStatsCollector:
         try:
             cur.execute(
                 """SELECT r.rolname, sum(s.rows)::bigint
-                   FROM pg_stat_statements s JOIN pg_roles r ON r.oid = s.userid
+                   FROM monitoring.pg_stat_statements s JOIN pg_roles r ON r.oid = s.userid
                    WHERE s.dbid = (SELECT oid FROM pg_database WHERE datname = current_database())
                    GROUP BY r.rolname"""
             )

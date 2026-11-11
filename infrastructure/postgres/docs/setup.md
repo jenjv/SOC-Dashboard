@@ -113,8 +113,7 @@ sudo -u postgres psql -v ON_ERROR_STOP=1 \
   -v intern_password="$INTERN_PASSWORD" \
   -f sql/roles.sql
 
-sudo -u postgres psql -v ON_ERROR_STOP=1 -d techstore -f sql/schema.sql
-sudo -u postgres psql -d techstore -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements;"
+sudo -u postgres psql -v ON_ERROR_STOP=1 -d techstore -f sql/schema.sql   # also creates monitoring.pg_stat_statements
 
 python3 -m venv ~/seed-venv && ~/seed-venv/bin/pip install -r sql/requirements.txt
 read -rs -p "Shared employee login password (for the VM 3 app): " SEED_EMPLOYEE_PASSWORD; echo
@@ -202,7 +201,7 @@ scripts/simulate_attacks.sh all            # or: brute denied bulk slow ddl reje
 | `denied` | `ERROR` / `42501` / `permission denied for table employees`, `statement` holds the query | `database_permission_denied` / high, `username` intern_readonly | none yet (proposed rule DB-002) |
 | `bulk` | none (fast queries aren't logged) | `database_bulk_read` / medium, `table` customers/orders, `rows_read` ≥ 1000, top reader intern_readonly | none yet (proposed DB-003) |
 | `slow` | `LOG` / `duration: 8xx ms  statement: SELECT pg_sleep(0.8)` | `database_slow_query` / medium, `duration_ms` | none |
-| `ddl` | `LOG` / `statement: CREATE TABLE soc_sim_tmp ...` and `DROP TABLE ...` | `database_ddl` / medium, `username` db_admin | none |
+| `ddl` | `LOG` / `statement: CREATE TABLE soc_sim_tmp (id int); DROP TABLE soc_sim_tmp;` (one line, sent as one statement) | `database_ddl` / medium, `username` db_admin | none |
 | `reject` | `FATAL` / `28000` / `pg_hba.conf rejects connection for host "<VM2_TS_IP>", user "app_user" ...` | `database_access_rejected` / high, `source_ip` <VM2_TS_IP> | none yet |
 | every test | `LOG` / `connection authorized: ...` and `disconnection: ...` for intern_readonly/db_admin | `database_connection` / `database_disconnection` / low | none |
 
