@@ -1,0 +1,4 @@
+# Dependencies for seed.py (run once on VM 2 to load fake company data)
+psycopg[binary]>=3.2,<4
+Faker>=30
+bcrypt>=4.2,<6

@@ -1,0 +1,11 @@
+# Real environment files hold passwords and tokens. Only the *.example
+# templates are committed.
+*.env
+.env
+!*.env.example
+.pgpass
+*.pgpass
+# Local Python artifacts
+.venv/
+__pycache__/
+*.pyc

@@ -1,0 +1,38 @@
+# SOC agent for SOC-DATABASE (VM 2)
+# Install to /etc/systemd/system/soc-agent.service, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now soc-agent
+[Unit]
+Description=SOC monitoring agent (SOC-DATABASE)
+After=network-online.target postgresql.service tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=soc-agent
+Group=soc-agent
+# adm grants read access to /var/log/postgresql/soc
+SupplementaryGroups=adm
+EnvironmentFile=/etc/soc-agent/soc-agent.env
+ExecStart=/opt/soc-agent/venv/bin/python /opt/soc-agent/agent.py
+Restart=always
+RestartSec=5
+# Creates /var/lib/soc-agent owned by soc-agent, for the tailer's state file
+StateDirectory=soc-agent
+StateDirectoryMode=0750
+
+# Hardening: the agent only reads logs and /proc and talks to the network
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+ReadOnlyPaths=/var/log/postgresql
+
+[Install]
+WantedBy=multi-user.target
