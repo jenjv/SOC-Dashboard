@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { getEvents, getStats, getAlerts, getAlert } from '@/services/api'
+import { getEvents, getStats, getAlerts, getAlert, updateAlertStatus } from '@/services/api'
 
 const search = ref('')
 const severityFilter = ref('All')
@@ -101,7 +101,23 @@ async function openAlertDetails(alert) {
       time: formatTime(apiAlert.created_at),
       status: displayLabel(apiAlert.status),
       details: apiAlert.description || 'No description provided.',
+      alertId: apiAlert.id,
+      alertStatus: apiAlert.status,
     }
+  } catch (error) {
+    apiError.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
+async function changeAlertStatus(status) {
+  const alertId = selectedEvent.value?.alertId
+  if (!alertId) return
+
+  try {
+    const updatedAlert = await updateAlertStatus(alertId, status)
+    selectedEvent.value.alertStatus = updatedAlert.status
+    selectedEvent.value.status = displayLabel(updatedAlert.status)
+    alerts.value = await getAlerts()
   } catch (error) {
     apiError.value = error instanceof Error ? error.message : String(error)
   }
@@ -384,7 +400,22 @@ const totalEvents = computed(
           <div><dt>Severity</dt><dd>{{ selectedEvent.severity }}</dd></div>
           <div><dt>Host</dt><dd>{{ selectedEvent.host }}</dd></div>
           <div><dt>Time</dt><dd>{{ selectedEvent.time }}</dd></div>
-          <div><dt>Status</dt><dd>{{ selectedEvent.status }}</dd></div>
+          <div>
+          <dt>Status</dt>
+          <dd v-if="!selectedEvent.alertId">{{ selectedEvent.status }}</dd>
+          <dd v-else>
+            <select
+              :value="selectedEvent.alertStatus"
+              aria-label="Update alert status"
+              @change="changeAlertStatus($event.target.value)"
+            >
+              <option value="new">New</option>
+              <option value="investigating">Investigating</option>
+              <option value="resolved">Resolved</option>
+              <option value="closed">Closed</option>
+            </select>
+          </dd>
+        </div>
         </dl>
       </section>
     </div>
