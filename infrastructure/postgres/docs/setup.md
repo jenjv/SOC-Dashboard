@@ -118,6 +118,9 @@ sudo ufw allow in on tailscale0 from <VM4_TS_IP> to any port 5432 proto tcp comm
 sudo ufw deny 5432/tcp comment 'PostgreSQL: everyone else'
 sudo ufw enable
 sudo ufw status numbered
+# Tailscale's ts-input chain otherwise accepts all tailnet traffic before ufw runs
+sudo tailscale set --netfilter-mode=nodivert
+sudo iptables -S INPUT | head -3      # first rule must be ufw-..., not ts-input
 ```
 
 Check from **VM 3**, and from your PC for the negative test:

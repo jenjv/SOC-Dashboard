@@ -44,8 +44,8 @@ system metrics, database stats and log events to SOC-CORE (VM 4).
 
 ## Status
 
-- **Live on SOC-DATABASE (2026-11-11):** installed with `scripts/install_vm2.sh`. techstore is seeded, soc_db (VM 4) is still connected, and soc-agent is running in dry-run mode until the VM 4 ingest token is added.
-- **Known issue:** ufw rules don't filter Tailscale traffic yet. Tailscale's own `ts-input` iptables chain accepts `tailscale0` traffic before ufw's chains run, so port 5432 is reachable from any tailnet device at the TCP level. pg_hba still rejects every client except VM 3 and VM 4, so the database stays protected, but this second layer isn't effective yet. Fix in progress: Tailscale ACLs or `--netfilter-mode`.
+- **Live on SOC-DATABASE (2026-11-12):** installed with `scripts/install_vm2.sh`. techstore is seeded, soc_db (VM 4) is still connected, and soc-agent is sending events to VM 4's `/api/ingest`.
+- **Firewall verified:** port 5432 is reachable from VM 3 and VM 4 only. VM 1 and other tailnet devices are blocked. This needs `tailscale set --netfilter-mode=nodivert` (applied by the `firewall` phase): otherwise Tailscale's `ts-input` chain accepts tailnet traffic before ufw's rules run.
 
 - Written and tested locally. Not yet applied to the live VM.
 - The agent payload matches VM 4's `/api/ingest`, but the open questions in [docs/agent-payload.md](docs/agent-payload.md) need agreement from the VM 4 owner.

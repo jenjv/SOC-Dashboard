@@ -264,6 +264,19 @@ phase_firewall() {
   ufw deny 5432/tcp comment 'PostgreSQL: everyone else' >/dev/null
   ufw --force enable >/dev/null
   ok "ufw enabled"
+  # By default tailscaled puts "-A INPUT -j ts-input" first, and ts-input
+  # accepts all tailscale0 traffic before ufw's chains run, so the 5432
+  # rules above would never apply to tailnet clients. nodivert keeps the
+  # ts-* chains but stops the jump, so ufw decides. The setting persists.
+  # Safe here because VM 2 is not a subnet router or exit node.
+  if command -v tailscale >/dev/null; then
+    tailscale set --netfilter-mode=nodivert 2>/dev/null || true
+    if iptables -S INPUT 2>/dev/null | grep -q -- '-j ts-input'; then
+      warn "Tailscale's ts-input jump is still first in INPUT; ufw will not filter tailnet traffic"
+    else
+      ok "Tailscale netfilter-mode=nodivert: ufw filters tailnet traffic"
+    fi
+  fi
   ufw status numbered | sed 's/^/    /'
 }
 
