@@ -24,6 +24,7 @@ system metrics, database stats and log events to SOC-CORE (VM 4).
 | `scripts/simulate_attacks.sh` | Lab-only attack simulations (localhost only) | run on VM 2 |
 | `docs/setup.md` | Step-by-step setup, verification, expected events per attack | |
 | `docs/agent-payload.md` | What the agent sends to VM 4, and open questions | |
+| `docs/test-results.md` | Rehearsal, live install, firewall and attack-simulation results | |
 
 ## Roles
 
@@ -45,9 +46,9 @@ system metrics, database stats and log events to SOC-CORE (VM 4).
 ## Status
 
 - **Live on SOC-DATABASE (2026-11-12):** installed with `scripts/install_vm2.sh`. techstore is seeded, soc_db (VM 4) is still connected, and soc-agent is sending events to VM 4's `/api/ingest`.
+- **Attacks verified:** all six simulated attacks were detected and forwarded to VM 4, and brute force raised a DB-001 alert. See [docs/test-results.md](docs/test-results.md).
+- **Not done yet:** the VM 3 app isn't deployed, so `app_user` from VM 3 is untested end to end.
 - **Firewall verified:** port 5432 is reachable from VM 3 and VM 4 only. VM 1 and other tailnet devices are blocked. This needs `tailscale set --netfilter-mode=nodivert` (applied by the `firewall` phase): otherwise Tailscale's `ts-input` chain accepts tailnet traffic before ufw's rules run.
-
-- Written and tested locally. Not yet applied to the live VM.
 - The agent payload matches VM 4's `/api/ingest`, but the open questions in [docs/agent-payload.md](docs/agent-payload.md) need agreement from the VM 4 owner.
 - The repo has no Ansible yet. Every file installs by copying it to a fixed path with placeholders, so each one can become an Ansible `template`/`copy` task later.
 
