@@ -2,9 +2,12 @@
 from pathlib import Path
 import logging
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
+from database import get_db
+from models import Product
 
 from routes.auth import router as auth_router
 from routes.orders import router as orders_router
@@ -51,29 +54,6 @@ app.mount(
     name="static"
 )
 
-# Temporary products for testing
-products = [
-    {
-        "id": 1,
-        "name": "Gaming Laptop",
-        "price": 1299.99,
-        "description": "High-performance laptop for gaming."
-    },
-    {
-        "id": 2,
-        "name": "Wireless Mouse",
-        "price": 39.99,
-        "description": "Wireless mouse with adjustable DPI."
-    },
-    {
-        "id": 3,
-        "name": "Mechanical Keyboard",
-        "price": 89.99,
-        "description": "Mechanical keyboard with RGB lighting."
-    }
-]
-
-
 @app.get("/")
 def home():
     logger.info("TechStore homepage accessed")
@@ -81,18 +61,34 @@ def home():
 
 
 @app.get("/api/products")
-def get_products():
+def get_products(db: Session = Depends(get_db)):
     logger.info("Product list requested")
-    return products
+    products = db.query(Product).order_by(Product.id).all()
+    return [
+        {
+            "id": product.id,
+            "name": product.name,
+            "price": float(product.price),
+            "description": product.description,
+            "stock": product.stock
+        }
+        for product in products
+    ]
 
 
 @app.get("/api/products/{product_id}")
-def get_product(product_id: int):
+def get_product(product_id: int, db: Session = Depends(get_db)):
     logger.info("Product requested: ID %s", product_id)
+    product = db.query(Product).filter(Product.id == product_id).first()
 
-    for product in products:
-        if product["id"] == product_id:
-            return product
+    if not product:
+        logger.warning("Product not found: ID %s", product_id)
+        raise HTTPException(status_code=404, detail="Product not found")
 
-    logger.warning("Product not found: ID %s", product_id)
-    raise HTTPException(status_code=404, detail="Product not found")
+    return {
+        "id": product.id,
+        "name": product.name,
+        "price": float(product.price),
+        "description": product.description,
+        "stock": product.stock
+    }

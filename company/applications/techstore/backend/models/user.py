@@ -6,7 +6,7 @@ from database import Base
 
 class User(Base):
     __tablename__ = "users"
-
+    __table_args__ = {"schema": "techstore_app"}
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(50), unique=True, nullable=False)
     email = Column(String(150), unique=True, nullable=False)
