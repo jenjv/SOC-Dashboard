@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TechStore | Electronics & Technology</title>
+    <link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+
+    <header>
+        <div class="logo">TechStore</div>
+
+        <nav>
+            <a href="#home">Home</a>
+            <a href="#products">Products</a>
+            <a href="#account">Account</a>
+            <a href="#cart">Cart (<span id="cart-count">0</span>)</a>
+        </nav>
+    </header>
+
+    <main>
+        <section class="hero" id="home">
+            <div>
+                <p class="eyebrow">TECHNOLOGY FOR EVERYDAY LIFE</p>
+                <h1>Upgrade Your<br>Technology.</h1>
+                <p>Discover electronics, accessories, and equipment
+                   designed to keep you connected.</p>
+                <a class="shop-button" href="#products">Shop Products</a>
+            </div>
+        </section>
+
+        <section class="products-section" id="products">
+            <h2>Featured Products</h2>
+            <p class="section-description">
+                Explore our selection of popular technology products.
+            </p>
+
+            <div id="product-list" class="product-grid">
+                <p>Loading products...</p>
+            </div>
+        </section>
+
+<section class="products-section" id="cart">
+    <h2>Your Shopping Cart</h2>
+    <p class="section-description">Review your selected products.</p>
+
+    <div id="cart-items">
+        <p>Your cart is currently empty.</p>
+    </div>
+
+    <h3 id="cart-total">Total: $0.00</h3>
+
+    <button id="checkout-button" class="shop-button" type="button">
+        Place Order
+    </button>
+
+    <p id="checkout-message" role="status"></p>
+</section>
+
+        <section class="account-section" id="account">
+    <h2>Customer Account</h2>
+    <p>Create an account or log in to TechStore.</p>
+
+    <div class="account-forms">
+        <form id="register-form">
+            <h3>Create Account</h3>
+
+            <input type="text" id="register-username"
+                   placeholder="Username" required minlength="3">
+
+            <input type="email" id="register-email"
+                   placeholder="Email" required>
+
+            <input type="password" id="register-password"
+                   placeholder="Password" required minlength="8">
+
+            <button type="submit">Register</button>
+        </form>
+
+        <form id="login-form">
+            <h3>Customer Login</h3>
+
+            <input type="email" id="login-email"
+                   placeholder="Email" required>
+
+            <input type="password" id="login-password"
+                   placeholder="Password" required>
+
+            <button type="submit">Log In</button>
+        </form>
+    </div>
+
+    <p id="account-message" role="status"></p>
+</section>
+
+    </main>
+
+    <footer>
+        <p>TechStore &copy; 2026 | Electronics & Technology</p>
+    </footer>
+
+    <script src="src/app.js"></script>
+</body>
+</html>
