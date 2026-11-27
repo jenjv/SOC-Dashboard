@@ -15,6 +15,7 @@ async function request(path, options = {}) {
 }
 
 export const getStats = () => request('/stats')
+export const getHosts = () => request('/hosts')
 export const getEvents = () => request('/events')
 export const getAlerts = () => request('/alerts')
 export const getAlert = (id) => request(`/alerts/${id}`)

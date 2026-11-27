@@ -1,0 +1,10 @@
+[Unit]
+Description=SOC host heartbeat for %i
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=/etc/default/fluent-bit
+ExecStart=/usr/bin/python3 /usr/local/bin/soc-host-heartbeat.py %i

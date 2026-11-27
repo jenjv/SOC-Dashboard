@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { getEvents, getStats, getAlerts, getAlert, updateAlertStatus } from '@/services/api'
+import { getEvents, getStats, getAlerts, getHosts, getAlert, updateAlertStatus } from '@/services/api'
 
 const search = ref('')
 const severityFilter = ref('All')
@@ -10,11 +10,7 @@ const apiError = ref('')
 const stats = ref(null)
 const alerts = ref([])
 
-const hosts = [
-  { name: 'SOC-NGINX', role: 'Web server', status: 'Online', address: 'VM 01' },
-  { name: 'SOC-DATABASE', role: 'Database server', status: 'Online', address: 'VM 02' },
-  { name: 'SOC-APPLICATION', role: 'Application server', status: 'Online', address: 'VM 03' },
-]
+const hosts = ref([])
 
 const events = ref([
   {
@@ -132,17 +128,19 @@ async function changeAlertStatus(status) {
 
 onMounted(async () => {
   try {
-    const [apiEvents, apiStats, apiAlerts] = await Promise.all([
+    const [apiEvents, apiStats, apiAlerts, apiHosts] = await Promise.all([
       getEvents(),
       getStats(),
       getAlerts(),
+      getHosts(),
     ])
 
-    if (!Array.isArray(apiEvents) || !Array.isArray(apiAlerts)) {
+    if (!Array.isArray(apiEvents) || !Array.isArray(apiAlerts) || !Array.isArray(apiHosts)) {
       throw new Error('Unexpected API response')
     }
 
     events.value = apiEvents.map(mapApiEvent)
+    hosts.value = apiHosts
     stats.value = apiStats
     alerts.value = apiAlerts
     apiConnected.value = true
@@ -182,6 +180,7 @@ const openEventCount = computed(() => {
 })
 
 const totalEvents = computed(() => stats.value?.total_events ?? events.value.length)
+const onlineHostCount = computed(() => hosts.value.filter((host) => host.status === 'online').length)
 </script>
 
 <template>
@@ -204,7 +203,7 @@ const totalEvents = computed(() => stats.value?.total_events ?? events.value.len
 
       <div class="sidebar-bottom">
         <span class="status-dot"></span>
-        <div><strong>Lab status</strong><small>Sample dashboard data</small></div>
+        <div><strong>Lab status</strong><small>{{ apiConnected ? 'Live SOC telemetry' : 'API not connected' }}</small></div>
       </div>
     </aside>
 
@@ -219,7 +218,7 @@ const totalEvents = computed(() => stats.value?.total_events ?? events.value.len
           <div>
             <p class="eyebrow">MONITORING</p>
             <h1>Security overview</h1>
-            <p class="subheading">A sample view of your monitored lab systems and events.</p>
+            <p class="subheading">Live host heartbeats and security events from the lab.</p>
           </div>
           <span class="time-range">Last 24 hours</span>
         </section>
@@ -228,8 +227,8 @@ const totalEvents = computed(() => stats.value?.total_events ?? events.value.len
           <article class="metric-card">
             <span class="metric-icon blue">◉</span>
             <p>Connected hosts</p>
-            <strong>{{ hosts.length }}</strong>
-            <small>Sample hosts, not live status</small>
+            <strong>{{ onlineHostCount }}</strong>
+            <small>Heartbeat received within 150 seconds</small>
           </article>
 
           <article class="metric-card">
@@ -366,7 +365,7 @@ const totalEvents = computed(() => stats.value?.total_events ?? events.value.len
           <div class="panel-heading">
             <div>
               <h2>Monitored hosts</h2>
-              <p>Sample inventory for the project lab</p>
+              <p>Live status from recent host heartbeats</p>
             </div>
           </div>
           <div class="host-list">
@@ -374,9 +373,9 @@ const totalEvents = computed(() => stats.value?.total_events ?? events.value.len
               <div class="host-symbol">⌘</div>
               <div class="host-info">
                 <strong>{{ host.name }}</strong>
-                <span>{{ host.role }} · {{ host.address }}</span>
+                <span>{{ host.role }} · {{ host.address }} · Last seen {{ host.last_seen ? formatTime(host.last_seen) : 'Never' }}</span>
               </div>
-              <span class="host-status"><i></i>{{ host.status }}</span>
+              <span class="host-status" :class="`status-${host.status}`"><i></i>{{ displayLabel(host.status) }}</span>
             </article>
           </div>
         </section>
@@ -384,7 +383,7 @@ const totalEvents = computed(() => stats.value?.total_events ?? events.value.len
         <p class="disclaimer">
           {{
             apiConnected
-              ? 'Events are loaded from SOC-Core. Host inventory is still sample data.'
+              ? 'Events and live host heartbeat status are loaded from SOC-Core.'
               : 'Showing sample events because the SOC API could not be reached.'
           }}
           <span v-if="apiError">({{ apiError }})</span>
@@ -865,6 +864,18 @@ td {
 .host-status i {
   width: 6px;
   height: 6px;
+}
+.host-status.status-stale {
+  color: #f2c46e;
+}
+.host-status.status-stale i {
+  background: #f2c46e;
+}
+.host-status.status-unknown {
+  color: #8491a6;
+}
+.host-status.status-unknown i {
+  background: #8491a6;
 }
 .disclaimer {
   margin: 4px 0 0;
