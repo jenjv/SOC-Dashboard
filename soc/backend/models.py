@@ -77,3 +77,10 @@ class Alert(Base):
         DateTime(timezone=True),
         server_default=func.now()
     )
+
+
+class HostHeartbeat(Base):
+    __tablename__ = "host_heartbeats"
+
+    source_machine = Column(String(100), primary_key=True)
+    last_seen = Column(DateTime(timezone=True), nullable=False)

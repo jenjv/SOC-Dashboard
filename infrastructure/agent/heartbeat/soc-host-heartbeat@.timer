@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodic SOC host heartbeat for %i
+
+[Timer]
+OnBootSec=15
+OnUnitActiveSec=60
+AccuracySec=5
+Unit=soc-host-heartbeat@%i.service
+
+[Install]
+WantedBy=timers.target

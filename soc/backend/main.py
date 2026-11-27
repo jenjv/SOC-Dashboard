@@ -1,6 +1,6 @@
 import os
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 
@@ -12,7 +12,7 @@ from sqlalchemy import func
 
 from soc.backend.database import Base, engine, get_db
 
-from soc.backend.models import Event, Alert
+from soc.backend.models import Event, Alert, HostHeartbeat
 
 from soc.processing.normalizer import normalize_event
 
@@ -22,6 +22,14 @@ from soc.detection.engine import detect_event
 load_dotenv()
 
 INGEST_TOKEN = os.getenv("INGEST_TOKEN")
+
+HOST_INVENTORY = [
+    {"name": "SOC-NGINX", "role": "Web server", "address": "100.91.198.37"},
+    {"name": "SOC-DATABASE", "role": "Database server", "address": "100.81.236.47"},
+    {"name": "SOC-APPLICATION", "role": "Application server", "address": "100.83.222.68"},
+]
+HOSTS_BY_NAME = {host["name"]: host for host in HOST_INVENTORY}
+HOST_ONLINE_WINDOW = timedelta(seconds=150)
 
 
 # Initialize database tables
@@ -51,6 +59,64 @@ def health():
         "status": "healthy",
         "service": "SOC Backend"
     }
+
+
+@app.post("/api/hosts/heartbeat")
+def record_host_heartbeat(
+    payload: dict,
+    db: Session = Depends(get_db),
+    x_ingest_token: str | None = Header(default=None)
+):
+    if not INGEST_TOKEN or x_ingest_token != INGEST_TOKEN:
+        raise HTTPException(status_code=401, detail="Invalid ingestion token")
+
+    source_machine = payload.get("source_machine")
+    if source_machine not in HOSTS_BY_NAME:
+        raise HTTPException(status_code=400, detail="Unknown source machine")
+
+    now = datetime.now(timezone.utc)
+    heartbeat = db.query(HostHeartbeat).filter(
+        HostHeartbeat.source_machine == source_machine
+    ).first()
+
+    if heartbeat is None:
+        heartbeat = HostHeartbeat(source_machine=source_machine, last_seen=now)
+        db.add(heartbeat)
+    else:
+        heartbeat.last_seen = now
+
+    db.commit()
+    return {"source_machine": source_machine, "last_seen": now}
+
+
+@app.get("/api/hosts")
+def get_hosts(db: Session = Depends(get_db)):
+    heartbeat_times = {
+        row.source_machine: row.last_seen
+        for row in db.query(HostHeartbeat).all()
+    }
+    event_times = dict(
+        db.query(Event.source_machine, func.max(Event.timestamp))
+        .group_by(Event.source_machine)
+        .all()
+    )
+
+    now = datetime.now(timezone.utc)
+    hosts = []
+
+    for host in HOST_INVENTORY:
+        last_seen = heartbeat_times.get(host["name"]) or event_times.get(host["name"])
+
+        if last_seen is None:
+            status = "unknown"
+        else:
+            if last_seen.tzinfo is None:
+                last_seen = last_seen.replace(tzinfo=timezone.utc)
+            status = "online" if now - last_seen <= HOST_ONLINE_WINDOW else "stale"
+
+        hosts.append({**host, "status": status, "last_seen": last_seen})
+
+    return hosts
 
 
 # Receive security events
