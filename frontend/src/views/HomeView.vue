@@ -126,20 +126,13 @@ async function changeAlertStatus(status) {
   }
 }
 
-let hostRefreshTimer
+let dashboardRefreshTimer
+let refreshInProgress = false
 
-async function refreshHosts() {
-  try {
-    const apiHosts = await getHosts()
-    if (!Array.isArray(apiHosts)) throw new Error('Unexpected host API response')
-    hosts.value = apiHosts
-  } catch (error) {
-    apiError.value = error instanceof Error ? error.message : String(error)
-  }
-}
+async function refreshDashboard() {
+  if (refreshInProgress) return
+  refreshInProgress = true
 
-onMounted(async () => {
-  hostRefreshTimer = window.setInterval(refreshHosts, 30_000)
   try {
     const [apiEvents, apiStats, apiAlerts, apiHosts] = await Promise.all([
       getEvents(),
@@ -157,13 +150,23 @@ onMounted(async () => {
     stats.value = apiStats
     alerts.value = apiAlerts
     apiConnected.value = true
+    apiError.value = ''
   } catch (error) {
     apiError.value = error instanceof Error ? error.message : String(error)
+  } finally {
+    refreshInProgress = false
   }
+}
+
+onMounted(() => {
+  void refreshDashboard()
+  dashboardRefreshTimer = window.setInterval(() => {
+    void refreshDashboard()
+  }, 30_000)
 })
 
 onUnmounted(() => {
-  window.clearInterval(hostRefreshTimer)
+  window.clearInterval(dashboardRefreshTimer)
 })
 
 const filteredEvents = computed(() => {
@@ -245,7 +248,7 @@ const onlineHostCount = computed(() => hosts.value.filter((host) => host.status 
             <span class="metric-icon blue">◉</span>
             <p>Connected hosts</p>
             <strong>{{ onlineHostCount }}</strong>
-            <small>Heartbeat received within 150 seconds</small>
+            <small>Recent agent data within 150 seconds</small>
           </article>
 
           <article class="metric-card">
@@ -274,7 +277,7 @@ const onlineHostCount = computed(() => hosts.value.filter((host) => host.status 
           <div class="panel-heading">
             <div>
               <h2>Recent security events</h2>
-              <p>Events received from the SOC backend</p>
+              <p>Events from the SOC backend · refreshes every 30 seconds</p>
             </div>
             <div class="filters">
               <input v-model="search" type="search" placeholder="Search events..." />
@@ -382,7 +385,7 @@ const onlineHostCount = computed(() => hosts.value.filter((host) => host.status 
           <div class="panel-heading">
             <div>
               <h2>Monitored hosts</h2>
-              <p>Live status from recent host heartbeats</p>
+              <p>Live status from recent agent data</p>
             </div>
           </div>
           <div class="host-list">
@@ -400,7 +403,7 @@ const onlineHostCount = computed(() => hosts.value.filter((host) => host.status 
         <p class="disclaimer">
           {{
             apiConnected
-              ? 'Events and live host heartbeat status are loaded from SOC-Core.'
+              ? 'Events and recent host status are loaded from SOC-Core.'
               : 'Showing sample events because the SOC API could not be reached.'
           }}
           <span v-if="apiError">({{ apiError }})</span>
