@@ -16,6 +16,32 @@ SUSPICIOUS_PATTERNS = [
 ]
 
 
+
+def describe_event(data, message, event_type):
+    method = data.get("method")
+    path = data.get("path")
+
+    is_http_event = (
+        data.get("source_type") == "nginx"
+        or event_type in {"http_request", "suspicious_web_request"}
+    )
+    if is_http_event and method and path:
+        source_ip = data.get("source_ip")
+        status = data.get("http_status") or data.get("status") or data.get("status_code")
+        source = f" from {source_ip}" if source_ip else ""
+        kind = (
+            "Suspicious web request"
+            if event_type == "suspicious_web_request"
+            else "HTTP request"
+        )
+        description = f"{kind}{source}: {method} {path}"
+        if status is not None:
+            description += f" (HTTP {status})"
+        return description
+
+    return data.get("description") or message or "Security event received"
+
+
 def normalize_event(record, default_source=None):
 
     data = parse_log(record)
@@ -127,11 +153,7 @@ def normalize_event(record, default_source=None):
 
         "username": data.get("username"),
 
-        "description": (
-            data.get("description")
-            or message
-            or "Security event received"
-        ),
+        "description": describe_event(data, message, event_type),
 
         "status": "new",
 
