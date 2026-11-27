@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { getEvents, getStats, getAlerts, getHosts, getAlert, updateAlertStatus } from '@/services/api'
 
 const search = ref('')
@@ -126,7 +126,20 @@ async function changeAlertStatus(status) {
   }
 }
 
+let hostRefreshTimer
+
+async function refreshHosts() {
+  try {
+    const apiHosts = await getHosts()
+    if (!Array.isArray(apiHosts)) throw new Error('Unexpected host API response')
+    hosts.value = apiHosts
+  } catch (error) {
+    apiError.value = error instanceof Error ? error.message : String(error)
+  }
+}
+
 onMounted(async () => {
+  hostRefreshTimer = window.setInterval(refreshHosts, 30_000)
   try {
     const [apiEvents, apiStats, apiAlerts, apiHosts] = await Promise.all([
       getEvents(),
@@ -147,6 +160,10 @@ onMounted(async () => {
   } catch (error) {
     apiError.value = error instanceof Error ? error.message : String(error)
   }
+})
+
+onUnmounted(() => {
+  window.clearInterval(hostRefreshTimer)
 })
 
 const filteredEvents = computed(() => {
